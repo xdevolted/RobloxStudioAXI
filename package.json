@@ -22,9 +22,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && vitest run test",
+    "test": "npm run build && vitest run test && node --test scripts/setup.test.mjs",
     "test:watch": "vitest",
     "check": "npm run typecheck && npm test && npm run build && npm run skill:check",
+    "prepare": "npm run build",
+    "setup": "node scripts/setup.mjs",
+    "setup:check": "node scripts/setup.mjs --check",
     "skill:generate": "npm run build && node scripts/generate-skill.mjs",
     "skill:check": "npm run build && node scripts/generate-skill.mjs --check"
   },

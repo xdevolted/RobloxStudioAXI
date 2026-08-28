@@ -1,5 +1,22 @@
 # Troubleshooting
 
+## Setup is incomplete
+
+From the RobloxStudioAXI checkout, inspect the CLI and user-level skill links without changing
+them:
+
+```powershell
+node scripts/setup.mjs --check
+```
+
+Run `node scripts/setup.mjs` to install or repair both links. Use
+`node scripts/setup.mjs --help` when only the CLI
+or only the skill should be managed. If setup reports that the skill target is a real directory,
+move that directory aside first; setup never overwrites an existing directory.
+
+If the CLI link fails on macOS or Linux, check the permissions and PATH for the npm global prefix.
+If Codex was already open when the skill link was created, restart Codex so the skill list refreshes.
+
 Start with:
 
 ```powershell

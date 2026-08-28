@@ -27,9 +27,13 @@ Run \`roblox-studio-axi test validate <spec>\` when authoring or changing a play
 Canonical CI output is written to the reported artifact directory as \`result.json\`.
 `;
 
+function normalizeLineEndings(value) {
+  return value.replace(/\r\n/gu, "\n");
+}
+
 if (process.argv.includes("--check")) {
   const current = await readFile(outputPath, "utf8").catch(() => "");
-  if (current !== content) {
+  if (normalizeLineEndings(current) !== normalizeLineEndings(content)) {
     process.stderr.write("skills/roblox-studio-axi/SKILL.md is stale; run npm run skill:generate\n");
     process.exitCode = 1;
   }

@@ -6,29 +6,88 @@ It is not a game framework, a publisher, a replacement for Rojo, or a bag of gam
 
 Status: version `0.1.0` implements the end-to-end deterministic playtest spine and is unit/fake-MCP tested. Real-Studio tests are optional and never run from `npm test`.
 
-## Requirements and installation
+## Install once, use from every Roblox project
 
+- Git.
 - Node.js 20 or newer (Node 24 LTS is supported).
 - Roblox Studio with its built-in MCP server enabled.
-- A game repository containing `.axi/config.toml`.
 
-For local development:
+Clone the repository anywhere; `SharedLibraries` is a convention, not a hard-coded path. From the
+folder that contains your Roblox projects:
 
-```powershell
+```shell
+git clone https://github.com/xdevolted/RobloxStudioAXI.git SharedLibraries/RobloxStudioAXI
 cd SharedLibraries/RobloxStudioAXI
-npm install
-npm run check
-npm link
+node scripts/setup.mjs
+```
+
+`node scripts/setup.mjs` is non-interactive and idempotent. It:
+
+1. installs the exact dependencies from `package-lock.json`;
+2. builds, typechecks, tests, and verifies the generated skill;
+3. links `roblox-studio-axi` into the npm global command path; and
+4. links the included agent skill into the user-level `.agents/skills/roblox-studio-axi`
+   directory.
+
+Check an existing installation without changing it:
+
+```shell
+node scripts/setup.mjs --check
 roblox-studio-axi --version
 ```
 
-`npm link` exposes the stable `roblox-studio-axi` executable. Game repositories call that executable; they do not reach into `src/` through relative paths.
+The setup result is compact and machine-readable. Progress and command diagnostics go to stderr.
+Use `node scripts/setup.mjs --help` for the complete option list, including CLI-only or skill-only
+installation.
 
-No session hooks are installed automatically. The optional skill at `skills/roblox-studio-axi/SKILL.md` is a secondary, on-demand discovery path.
+### Let an agent discover it
+
+The setup command registers the included `roblox-studio-axi` skill at the user scope, so Codex can
+discover it from any game repository. Codex supports symlinked skill directories and scans
+`~/.agents/skills`; see the [official Codex skill locations](https://developers.openai.com/codex/skills#where-codex-loads-local-skills).
+
+If Codex was already open during setup, restart it if the skill does not appear. Then invoke it
+explicitly with `$roblox-studio-axi`, select it from `/skills`, or ask naturally:
+
+```text
+Use Roblox Studio AXI to inspect this project and run its smoke playtest.
+```
+
+Agents that do not support the Agent Skills format can still call the installed
+`roblox-studio-axi` command directly. Compatible agents can use the portable skill directory at
+`skills/roblox-studio-axi/` according to their own skill-discovery rules.
+
+No session hooks are installed. Setup only creates the explicit CLI and skill links described
+above.
+
+### CLI-only installation
+
+If skill discovery is not needed, install the CLI directly from GitHub:
+
+```shell
+npm install --global git+https://github.com/xdevolted/RobloxStudioAXI.git
+roblox-studio-axi --version
+```
+
+This path builds automatically during installation but does not register the agent skill. The
+repository is currently private, so the GitHub account performing either clone must have access.
+
+### Update or repair
+
+From the shared-library checkout:
+
+```shell
+git pull --ff-only
+node scripts/setup.mjs
+node scripts/setup.mjs --check
+```
+
+Repeated setup repairs stale CLI or skill links and otherwise succeeds as a no-op.
 
 ## First command
 
-From a configured game repository:
+Each game repository owns its `.axi/config.toml`, workflows, and playtest specifications. From a
+configured game repository:
 
 ```powershell
 roblox-studio-axi
@@ -138,6 +197,23 @@ NewGame/
 ```
 
 Configure its own place and expected Studio identity, write generic steps/probes for its actual behavior, and invoke the stable executable.
+
+The shared-library repository contains no game-specific place files, IDs, credentials, workflows,
+or acceptance tests. See [project configuration](docs/project-configuration.md) and
+[playtest specifications](docs/playtest-spec.md) when adding a game.
+
+## Develop the shared library
+
+Setup is for a persistent shared checkout. Contributors can run the verification path directly:
+
+```shell
+npm ci
+npm run check
+```
+
+The `prepare` lifecycle builds distributable files for npm and direct Git installs. Generated
+`dist/` files and local dependencies remain ignored because they are reproducible from the tracked
+source and lockfile.
 
 ## Safety
 
