@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roblox-studio-axi.local/schemas/project-config.schema.json",
+  "title": "Roblox Studio AXI project configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "place_id": { "type": "integer", "minimum": 1 },
+        "universe_id": { "type": "integer", "minimum": 1 },
+        "expected_place_name": { "type": "string", "minLength": 1 },
+        "local_place": { "type": "string", "minLength": 1 }
+      }
+    },
+    "studio": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "executable": { "type": "string", "minLength": 1 },
+        "mcp_command": { "type": "string", "minLength": 1 },
+        "mcp_args": { "type": "array", "items": { "type": "string" } },
+        "startup_timeout_seconds": { "type": "number", "exclusiveMinimum": 0 },
+        "operation_timeout_seconds": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "testing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "playtests": { "type": "string", "minLength": 1 },
+        "workflows": { "type": "string", "minLength": 1 },
+        "default_workflow": { "type": "string", "minLength": 1 }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "directory": { "type": "string", "minLength": 1 },
+        "screenshots": { "enum": ["always", "on_failure", "never"] },
+        "console": { "enum": ["all", "errors_and_warnings", "errors"] }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "environment": { "enum": ["test", "development", "production"] },
+        "allow_publish": { "const": false },
+        "allow_live_datastores": { "type": "boolean" },
+        "always_stop_playtest": { "const": true }
+      }
+    }
+  }
+}

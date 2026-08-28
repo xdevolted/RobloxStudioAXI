@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roblox-studio-axi.local/schemas/result.schema.json",
+  "title": "Roblox Studio AXI test result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "run_id", "test_id", "status", "started_at", "finished_at", "duration_ms", "assertions", "console", "cleanup", "evidence"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "run_id": { "type": "string" },
+    "test_id": { "type": "string" },
+    "status": { "enum": ["passed", "failed", "error"] },
+    "started_at": { "type": "string", "format": "date-time" },
+    "finished_at": { "type": "string", "format": "date-time" },
+    "duration_ms": { "type": "number", "minimum": 0 },
+    "last_studio_state": { "type": ["string", "null"] },
+    "assertions": {
+      "type": "object",
+      "required": ["passed", "failed", "results"],
+      "properties": {
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "results": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "console": {
+      "type": "object",
+      "required": ["errors", "warnings", "path"],
+      "properties": {
+        "errors": { "type": "integer", "minimum": 0 },
+        "warnings": { "type": "integer", "minimum": 0 },
+        "path": { "type": "string" },
+        "excerpt": { "type": "string" }
+      }
+    },
+    "cleanup": {
+      "type": "object",
+      "required": ["status", "stop_attempted"],
+      "properties": {
+        "status": { "enum": ["passed", "failed", "not_needed"] },
+        "stop_attempted": { "type": "boolean" },
+        "error": { "type": "string" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["directory", "screenshots"],
+      "properties": {
+        "directory": { "type": "string" },
+        "screenshots": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "message": { "type": "string" },
+        "step": { "type": ["integer", "null"] },
+        "assertion": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

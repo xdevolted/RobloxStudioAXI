@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roblox-studio-axi.local/schemas/run-manifest.schema.json",
+  "title": "Roblox Studio AXI run manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "axi_version", "run_id", "test_id", "test_spec_digest", "project", "studio_id", "started_at", "configuration"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "axi_version": { "type": "string" },
+    "run_id": { "type": "string" },
+    "test_id": { "type": "string" },
+    "test_spec_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "project": { "type": "string" },
+    "git_sha": { "type": ["string", "null"] },
+    "studio_id": { "type": "string" },
+    "place_id": { "type": ["integer", "null"] },
+    "started_at": { "type": "string", "format": "date-time" },
+    "configuration": { "type": "object" }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "name": "roblox-studio-axi",
+  "version": "0.1.0",
+  "description": "Agent-oriented Roblox Studio automation and deterministic playtesting CLI",
+  "type": "module",
+  "bin": {
+    "roblox-studio-axi": "dist/bin/roblox-studio-axi.js"
+  },
+  "files": [
+    "dist/bin",
+    "dist/src",
+    "docs",
+    "schemas",
+    "skills",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && vitest run test",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm test && npm run build && npm run skill:check",
+    "skill:generate": "npm run build && node scripts/generate-skill.mjs",
+    "skill:check": "npm run build && node scripts/generate-skill.mjs --check"
+  },
+  "keywords": [
+    "roblox",
+    "roblox-studio",
+    "mcp",
+    "axi",
+    "playtest"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@toon-format/toon": "4.1.1",
+    "ajv": "8.20.0",
+    "axi-sdk-js": "0.1.11",
+    "fast-glob": "3.3.3",
+    "smol-toml": "1.8.0",
+    "yaml": "2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  }
+}

@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roblox-studio-axi.local/schemas/playtest-spec.schema.json",
+  "title": "Roblox Studio AXI playtest specification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "title", "steps", "cleanup"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "title": { "type": "string", "minLength": 1 },
+    "setup": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "enum": ["edit", "play"] },
+        "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/step" }
+    },
+    "assertions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/assertion" }
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stop_playtest"],
+      "properties": {
+        "stop_playtest": { "const": true }
+      }
+    }
+  },
+  "$defs": {
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "properties": {
+        "instance_path": { "type": "string", "minLength": 1 },
+        "test_id": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "minLength": 1 },
+        "semantic": { "type": "string", "minLength": 1 },
+        "coordinates": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "y"],
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" }
+          }
+        }
+      }
+    },
+    "stepBase": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+        "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "step": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false, "required": ["action", "duration_ms"],
+          "properties": { "action": { "const": "wait" }, "duration_ms": { "type": "integer", "minimum": 0 }, "id": { "type": "string" }, "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["action", "state"],
+          "properties": { "action": { "const": "wait_for_state" }, "state": { "enum": ["edit", "play", "paused"] }, "id": { "type": "string" }, "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["action"],
+          "properties": { "action": { "const": "wait_for_player" }, "id": { "type": "string" }, "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["action"],
+          "properties": { "action": { "enum": ["start_play", "stop_play", "console_capture"] }, "id": { "type": "string" }, "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["action", "context"], "anyOf": [{ "required": ["code"] }, { "required": ["file"] }],
+          "properties": { "action": { "const": "execute_luau" }, "context": { "enum": ["edit", "client", "server"] }, "code": { "type": "string", "minLength": 1 }, "file": { "type": "string", "minLength": 1 }, "id": { "type": "string" }, "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["action"], "anyOf": [{ "required": ["position"] }, { "required": ["target"] }],
+          "properties": { "action": { "const": "navigate" }, "position": { "type": "array", "prefixItems": [{ "type": "number" }, { "type": "number" }, { "type": "number" }], "minItems": 3, "maxItems": 3 }, "target": { "$ref": "#/$defs/target" }, "speed_multiplier": { "type": "number", "exclusiveMinimum": 0 }, "id": { "type": "string" }, "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["action", "sequence"],
+          "properties": { "action": { "const": "keyboard" }, "sequence": { "type": "array", "minItems": 1, "items": { "type": "object" } }, "target": { "$ref": "#/$defs/target" }, "id": { "type": "string" }, "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["action", "sequence"],
+          "properties": { "action": { "const": "mouse" }, "sequence": { "type": "array", "minItems": 1, "items": { "type": "object" } }, "target": { "$ref": "#/$defs/target" }, "id": { "type": "string" }, "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["action", "label"],
+          "properties": { "action": { "const": "capture" }, "label": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }, "id": { "type": "string" }, "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 } }
+        }
+      ]
+    },
+    "assertion": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false, "required": ["type", "maximum"],
+          "properties": { "id": { "type": "string" }, "type": { "const": "console_errors" }, "maximum": { "type": "integer", "minimum": 0 }, "after_step": { "type": "string" } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["type", "actual"],
+          "properties": { "id": { "type": "string" }, "type": { "enum": ["truthy", "falsy", "exists", "not_exists"] }, "actual": { "type": "string", "minLength": 1 }, "after_step": { "type": "string" } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["type", "actual", "expected"],
+          "properties": { "id": { "type": "string" }, "type": { "enum": ["equals", "not_equals", "greater_than", "greater_than_or_equal", "less_than", "less_than_or_equal"] }, "actual": { "type": "string", "minLength": 1 }, "expected": {}, "after_step": { "type": "string" } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["type", "actual", "baseline", "delta"],
+          "properties": { "id": { "type": "string" }, "type": { "const": "numeric_delta" }, "actual": { "type": "string", "minLength": 1 }, "baseline": { "type": "string", "minLength": 1 }, "delta": { "type": "number" }, "tolerance": { "type": "number", "minimum": 0 }, "after_step": { "type": "string" } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["type", "context", "operator"], "anyOf": [{ "required": ["code"] }, { "required": ["file"] }],
+          "properties": { "id": { "type": "string" }, "type": { "const": "probe" }, "context": { "enum": ["edit", "client", "server"] }, "code": { "type": "string", "minLength": 1 }, "file": { "type": "string", "minLength": 1 }, "operator": { "enum": ["equals", "not_equals", "truthy", "falsy", "exists", "not_exists", "greater_than", "greater_than_or_equal", "less_than", "less_than_or_equal"] }, "expected": {}, "after_step": { "type": "string" } }
+        }
+      ]
+    }
+  }
+}

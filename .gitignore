@@ -1,0 +1,23 @@
+node_modules/
+dist/
+coverage/
+*.tgz
+*.log
+
+# Local credentials and machine-specific configuration
+.env
+.env.*
+!.env.example
+.npmrc
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+
+# Generated evidence and editor/OS metadata
+.artifacts/
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/settings.json
