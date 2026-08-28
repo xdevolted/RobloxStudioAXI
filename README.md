@@ -12,14 +12,19 @@ Status: version `0.1.0` implements the end-to-end deterministic playtest spine a
 - Node.js 20 or newer (Node 24 LTS is supported).
 - Roblox Studio with its built-in MCP server enabled.
 
-Clone the repository anywhere; `SharedLibraries` is a convention, not a hard-coded path. From the
-folder that contains your Roblox projects:
+Choose the parent directory where you want `RobloxStudioAXI` installed, change into that directory,
+then clone and run setup from inside the new checkout:
 
 ```shell
-git clone https://github.com/xdevolted/RobloxStudioAXI.git SharedLibraries/RobloxStudioAXI
-cd SharedLibraries/RobloxStudioAXI
+cd path/to/your/chosen/directory
+git clone https://github.com/xdevolted/RobloxStudioAXI.git
+cd RobloxStudioAXI
 node scripts/setup.mjs
 ```
+
+Git creates the `RobloxStudioAXI` directory. The setup script does not create a `SharedLibraries`
+parent directory or move the checkout. If you want that layout, create or choose `SharedLibraries`
+first, change into it, and run the commands above.
 
 `node scripts/setup.mjs` is non-interactive and idempotent. It:
 
