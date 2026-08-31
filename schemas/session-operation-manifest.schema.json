@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roblox-studio-axi.local/schemas/session-operation-manifest.schema.json",
+  "title": "Managed-session operation manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "axi_version", "operation_id", "command", "request", "controller", "started_at"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "axi_version": { "type": "string", "minLength": 1 },
+    "operation_id": { "type": "string", "minLength": 1 },
+    "command": { "enum": ["session.start", "session.stop"] },
+    "request": { "type": "object" },
+    "controller": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pid", "createdAt"],
+      "properties": {
+        "pid": { "type": "integer", "minimum": 1 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "started_at": { "type": "string", "format": "date-time" }
+  }
+}

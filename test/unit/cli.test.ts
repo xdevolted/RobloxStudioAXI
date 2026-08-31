@@ -65,4 +65,25 @@ describe("CLI contract", () => {
       stdout: expect.stringContaining('"code": "MCP_CONNECTION_FAILED"'),
     });
   });
+
+  it("validates managed-session client count before project or Studio access", async () => {
+    await expect(
+      execFileAsync(process.execPath, [cli, "session", "start", "--clients", "0"], {
+        windowsHide: true,
+      }),
+    ).rejects.toMatchObject({
+      code: 2,
+      stdout: expect.stringContaining("--clients is required and must be an integer from 1 through 8"),
+    });
+  });
+
+  it("rejects Studio selection and ownership-bypass flags on session commands", async () => {
+    for (const flag of ["--studio", "--force", "--adopt", "--kill"]) {
+      await expect(
+        execFileAsync(process.execPath, [cli, "session", "status", flag, "value"], {
+          windowsHide: true,
+        }),
+      ).rejects.toMatchObject({ code: 2, stdout: expect.stringContaining(`Unknown flag ${flag}`) });
+    }
+  });
 });

@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roblox-studio-axi.local/schemas/session-record.schema.json",
+  "title": "Managed Local Multiplayer Session record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "protocolVersion", "revision", "phase", "ownership", "project", "clients", "controller", "createdAt", "updatedAt", "originatingEvidence", "latestEvidence"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "protocolVersion": { "const": 1 },
+    "revision": { "type": "integer", "minimum": 1 },
+    "phase": { "enum": ["starting", "running", "stopping", "recovery_required"] },
+    "ownership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "sessionId", "projectRoot", "launchTarget", "requestedClients"],
+      "properties": {
+        "protocol": { "const": "roblox-studio-axi/managed-session/v1" },
+        "sessionId": { "type": "string", "minLength": 1 },
+        "projectRoot": { "type": "string", "minLength": 1 },
+        "launchTarget": { "type": "string", "minLength": 1 },
+        "requestedClients": { "type": "integer", "minimum": 1, "maximum": 8 }
+      }
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "root", "target"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "root": { "type": "string", "minLength": 1 },
+        "target": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "path"],
+              "properties": { "kind": { "const": "local" }, "path": { "type": "string", "minLength": 1 } }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "placeId", "universeId"],
+              "properties": {
+                "kind": { "const": "published" },
+                "placeId": { "type": "integer", "minimum": 1 },
+                "universeId": { "type": "integer", "minimum": 1 }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "clients": { "type": "integer", "minimum": 1, "maximum": 8 },
+    "controller": { "$ref": "#/$defs/processIdentity" },
+    "bootstrap": {
+      "allOf": [
+        { "$ref": "#/$defs/processIdentity" },
+        {
+          "type": "object",
+          "required": ["executable", "scriptPath", "logPath"],
+          "properties": {
+            "executable": { "type": "string", "minLength": 1 },
+            "scriptPath": { "type": "string", "minLength": 1 },
+            "logPath": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "originatingEvidence": { "type": "string", "minLength": 1 },
+    "latestEvidence": { "type": "string", "minLength": 1 }
+  },
+  "$defs": {
+    "processIdentity": {
+      "type": "object",
+      "required": ["pid", "createdAt"],
+      "properties": {
+        "pid": { "type": "integer", "minimum": 1 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

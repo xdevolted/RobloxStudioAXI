@@ -2,6 +2,8 @@
 
 > **THROWAWAY PROTOTYPE.** This answers the control/readiness question in [Prove deterministic Local Multiplayer Session control](https://github.com/xdevolted/RobloxStudioAXI/issues/2). It is not production architecture and should not be merged into the product.
 
+Disposition: retained as historical proof only. Production code lives under `src/session/` and imports nothing from this directory.
+
 The prototype uses only the selected supported control path:
 
 - documented Studio CLI `RunScript` bootstrap;

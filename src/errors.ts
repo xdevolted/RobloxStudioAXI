@@ -8,6 +8,11 @@ export const ExitCode = {
   Timeout: 6,
   Internal: 7,
   CleanupFailure: 8,
+  Conflict: 9,
+  Busy: 10,
+  RecoveryRequired: 11,
+  Interrupted: 12,
+  Unsupported: 13,
 } as const;
 
 export type ExitCodeValue = (typeof ExitCode)[keyof typeof ExitCode];
@@ -24,6 +29,11 @@ export type ErrorCode =
   | "STUDIO_AMBIGUOUS"
   | "STUDIO_UNAVAILABLE"
   | "TIMEOUT"
+  | "SESSION_CONFLICT"
+  | "SESSION_BUSY"
+  | "SESSION_RECOVERY_REQUIRED"
+  | "INTERRUPTED"
+  | "UNSUPPORTED"
   | "USAGE_ERROR";
 
 export class RobloxAxiError extends Error {

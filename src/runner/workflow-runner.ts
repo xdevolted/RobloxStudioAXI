@@ -4,6 +4,7 @@ import { ExitCode, RobloxAxiError } from "../errors.js";
 import { loadPlaytestSpec } from "../project/load-spec.js";
 import type { ResolvedProjectConfig, StudioInstance, TestResult, WorkflowSpec } from "../types.js";
 import type { StudioService } from "../studio/service.js";
+import type { PlayControl } from "../studio/play-control.js";
 import { runPlaytest } from "./test-runner.js";
 
 export interface WorkflowOutcome {
@@ -40,6 +41,7 @@ export async function runWorkflow(options: {
   config: ResolvedProjectConfig;
   workflow: WorkflowSpec;
   service: StudioService;
+  playControl: PlayControl;
   studio: StudioInstance;
   signal?: AbortSignal;
 }): Promise<WorkflowOutcome> {
@@ -85,6 +87,7 @@ export async function runWorkflow(options: {
         spec: loaded.spec,
         source: loaded.source,
         service: options.service,
+        playControl: options.playControl,
         studio: options.studio,
         signal: controller.signal,
       });

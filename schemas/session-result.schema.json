@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roblox-studio-axi.local/schemas/session-result.schema.json",
+  "title": "Managed-session operation result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "response", "exit_code", "started_at", "finished_at", "duration_ms"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "response": { "type": "object", "required": ["schema_version", "command", "result", "changed", "session"] },
+    "exit_code": { "type": "integer", "minimum": 0, "maximum": 13 },
+    "started_at": { "type": "string", "format": "date-time" },
+    "finished_at": { "type": "string", "format": "date-time" },
+    "duration_ms": { "type": "number", "minimum": 0 }
+  }
+}

@@ -9,7 +9,10 @@ export type SchemaName =
   | "playtest-spec"
   | "workflow"
   | "run-manifest"
-  | "result";
+  | "result"
+  | "session-record"
+  | "session-operation-manifest"
+  | "session-result";
 
 let packageRootPromise: Promise<string> | undefined;
 const validators = new Map<SchemaName, ValidateFunction>();
