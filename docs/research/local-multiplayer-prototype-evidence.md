@@ -14,7 +14,7 @@ The supported control and observation joins work on installed Roblox Studio `0.7
 - an independent invocation refuses the live simulation before launch or mutation;
 - server-side `EndTest()` gracefully tears down the Local Server, Player Clients, MCP targets, and bootstrap process.
 
-This validates the selected control surface. It does not validate a durable lease/recovery design or production architecture.
+This validates the selected control surface. It does not validate a durable Managed Session Record, recovery design, or production architecture.
 
 ## Scenario
 
@@ -87,7 +87,7 @@ This reached the strongest proposed `responsive` readiness level without human i
 
 ## Retry and stop evidence
 
-- While the owned session was live, a separate prototype process observed the Local Server / Player Client processes and refused before launch with `mutation: false`. The owned session remained unchanged.
+- While the prototype-controlled session was live, a separate prototype process observed the Local Server / Player Client processes and refused before launch with `mutation: false`. The Local Multiplayer Session remained unchanged.
 - A second start request for `2` clients re-probed ownership/readiness and returned `successful no-op` with `mutation: false`.
 - A start request for `3` clients returned `conflict` with `mutation: false` while preserving the two-client session.
 - Stop re-read `StudioTestService:GetTestArgs()` inside the exact Local Server and compared the session token before calling `EndTest()`.
@@ -97,7 +97,7 @@ This reached the strongest proposed `responsive` readiness level without human i
 
 ## Limits exposed by the prototype
 
-- The prototype's retry classification is in-memory. A production command needs the separate durable ownership/lease decision before cross-process retries are safe.
+- The prototype's retry classification is in-memory. A production command needs the separate durable Managed Session Record decision before cross-process retries are safe.
 - `--outputFile` contained bootstrap and completion markers after the yielding call returned; this run did not prove that it flushes a readiness marker while the call is still active. MCP ownership/readiness probes were sufficient, so the output file should not be the primary live signal.
 - Windows role classification used version-specific internal command-line observations as corroboration. Production control must continue to use documented `StudioTestService`, and ownership must continue to come from the in-engine token.
 - The prototype did not prove crash recovery, Windows job-object inheritance, stale-record handling, timeouts under partial startup, or behavior across Studio upgrades.

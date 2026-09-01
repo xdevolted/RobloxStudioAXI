@@ -7,9 +7,11 @@ import {
   type SessionEnvironment,
   type SessionEvidence,
   type SessionObservation,
+  type SessionOperation,
   type SessionOutcome,
   type SessionRepository,
   type SessionResponse,
+  type SessionTransaction,
   type SessionWorld,
   type StartSessionRequest,
   type StatusSessionRequest,
@@ -103,6 +105,15 @@ function hasAdapterFailure(observation: SessionObservation): boolean {
   return observation.contradictions.some((item) => item.startsWith("adapter: "));
 }
 
+function teardownRemains(observation: SessionObservation): boolean {
+  return (
+    !observation.stable ||
+    observation.contradictions.length > 0 ||
+    observation.possibleSimulation ||
+    observation.readiness === "bootstrap"
+  );
+}
+
 function responseFrom(
   command: SessionResponse["command"],
   result: string,
@@ -137,6 +148,78 @@ function responseFrom(
         record: structuredClone(record),
         observation: structuredClone(observation),
       },
+    },
+  };
+}
+
+async function cleanUpInterruptedStart(
+  dependencies: Dependencies,
+  transaction: SessionTransaction,
+  operation: SessionOperation,
+  record: ManagedSessionRecord,
+  observation: SessionObservation,
+  actions: string[],
+  deadline: number,
+): Promise<SessionOutcome> {
+  record.phase = "stopping";
+  record.revision += 1;
+  record.updatedAt = dependencies.environment.now().toISOString();
+  record.latestEvidence = operation.directory;
+  await transaction.write(record);
+  actions.push("record_marked_stopping");
+  await operation.action("record_marked_stopping");
+
+  await dependencies.world.endOwned(record, observation.serverTargetId!);
+  actions.push("end_test_requested");
+  await operation.action("end_test_requested");
+
+  let finalObservation = await dependencies.world.observe(record);
+  await operation.appendObservation(finalObservation);
+  while (teardownRemains(finalObservation)) {
+    if (dependencies.environment.now().getTime() >= deadline) {
+      const interrupted = responseFrom(
+        "session.start",
+        "interrupted",
+        true,
+        record,
+        finalObservation,
+        operation.directory,
+        actions,
+      );
+      interrupted.exitCode = 12;
+      interrupted.response.reason = "signal_received";
+      interrupted.response.help = ["Retry `roblox-studio-axi session stop`"];
+      return interrupted;
+    }
+    await dependencies.environment.sleep(
+      Math.min(250, deadline - dependencies.environment.now().getTime()),
+    );
+    finalObservation = await dependencies.world.observe(record);
+    await operation.appendObservation(finalObservation);
+  }
+
+  actions.push("teardown_verified");
+  await operation.action("teardown_verified");
+  await transaction.remove();
+  actions.push("record_removed");
+  await operation.action("record_removed");
+  return {
+    exitCode: 12,
+    response: {
+      schema_version: 1,
+      command: "session.start",
+      result: "interrupted",
+      reason: "signal_received",
+      changed: true,
+      session: {
+        state: "absent",
+        ownership: "none",
+        readiness: "none",
+        health: "not_applicable",
+        clients: {},
+      },
+      evidence: operation.directory,
+      actions,
     },
   };
 }
@@ -208,6 +291,21 @@ export function createManagedSession(dependencies: Dependencies): ManagedSession
               await operation.action("stale_record_cleared");
               existing = undefined;
             } else if (_context.signal?.aborted || dependencies.environment.now().getTime() >= deadline) {
+              if (
+                _context.signal?.aborted &&
+                staleObservation.ownership === "proved" &&
+                staleObservation.serverTargetId !== undefined
+              ) {
+                return cleanUpInterruptedStart(
+                  dependencies,
+                  transaction,
+                  operation,
+                  existing,
+                  staleObservation,
+                  actions,
+                  deadline,
+                );
+              }
               const terminated = responseFrom(
                 "session.start",
                 _context.signal?.aborted ? "interrupted" : "timed_out",
@@ -303,6 +401,17 @@ export function createManagedSession(dependencies: Dependencies): ManagedSession
             !["joined", "responsive"].includes(observation.readiness)
           ) {
             if (_context.signal?.aborted) {
+              if (observation.ownership === "proved" && observation.serverTargetId !== undefined) {
+                return cleanUpInterruptedStart(
+                  dependencies,
+                  transaction,
+                  operation,
+                  existing,
+                  observation,
+                  actions,
+                  deadline,
+                );
+              }
               const interrupted = responseFrom(
                 "session.start",
                 "interrupted",
@@ -335,6 +444,17 @@ export function createManagedSession(dependencies: Dependencies): ManagedSession
             );
             observation = await dependencies.world.observe(existing);
             await operation.appendObservation(observation);
+          }
+          if (_context.signal?.aborted) {
+            return cleanUpInterruptedStart(
+              dependencies,
+              transaction,
+              operation,
+              existing,
+              observation,
+              actions,
+              deadline,
+            );
           }
           existing.phase = "running";
           existing.revision += 1;
@@ -451,6 +571,17 @@ export function createManagedSession(dependencies: Dependencies): ManagedSession
           !["joined", "responsive"].includes(observation.readiness)
         ) {
           if (_context.signal?.aborted) {
+            if (observation.ownership === "proved" && observation.serverTargetId !== undefined) {
+              return cleanUpInterruptedStart(
+                dependencies,
+                transaction,
+                operation,
+                record,
+                observation,
+                actions,
+                deadline,
+              );
+            }
             const interrupted = responseFrom(
               "session.start",
               "interrupted",
@@ -489,6 +620,17 @@ export function createManagedSession(dependencies: Dependencies): ManagedSession
           observation = await dependencies.world.observe(record);
           await operation.appendObservation(observation);
         }
+        if (_context.signal?.aborted) {
+          return cleanUpInterruptedStart(
+            dependencies,
+            transaction,
+            operation,
+            record,
+            observation,
+            actions,
+            deadline,
+          );
+        }
         record.phase = "running";
         record.revision += 1;
         record.updatedAt = dependencies.environment.now().toISOString();
@@ -514,7 +656,7 @@ export function createManagedSession(dependencies: Dependencies): ManagedSession
       return outcome;
     },
 
-    async status(_request: StatusSessionRequest, _context: CommandContext): Promise<SessionOutcome> {
+    async status(request: StatusSessionRequest, _context: CommandContext): Promise<SessionOutcome> {
       const deadline = dependencies.environment.now().getTime() + _context.timeoutMs;
       let record: ManagedSessionRecord | undefined;
       try {
@@ -527,6 +669,27 @@ export function createManagedSession(dependencies: Dependencies): ManagedSession
       let observation = await dependencies.world.observe(record);
       if (!observation.stable || hasAdapterFailure(observation)) {
         return incompleteObservationOutcome("session.status", observation, undefined, true);
+      }
+      if (record !== undefined && request.project !== undefined && !sessionProjectsMatch(record.project, request.project)) {
+        const conflict = responseFrom(
+          "session.status",
+          "conflict",
+          false,
+          record,
+          observation,
+          undefined,
+          [],
+        );
+        conflict.exitCode = 9;
+        conflict.response.reason =
+          normalizeWindowsPath(record.project.root).toLocaleLowerCase() !==
+          normalizeWindowsPath(request.project.root).toLocaleLowerCase()
+            ? "project_mismatch"
+            : "launch_target_mismatch";
+        conflict.response.help = [
+          "Run `roblox-studio-axi session status --full` without a mismatching project assertion",
+        ];
+        return conflict;
       }
       if (record === undefined && !observation.possibleSimulation) {
         return {
@@ -772,7 +935,7 @@ export function createManagedSession(dependencies: Dependencies): ManagedSession
 
           let finalObservation = await dependencies.world.observe(record);
           await operation.appendObservation(finalObservation);
-          while (finalObservation.possibleSimulation) {
+          while (teardownRemains(finalObservation)) {
             if (_context.signal?.aborted) {
               const interrupted = responseFrom(
                 "session.stop",

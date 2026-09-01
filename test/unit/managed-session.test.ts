@@ -400,6 +400,62 @@ describe("ManagedSession", () => {
     expect(repository.record?.phase).toBe("stopping");
   });
 
+  it("retains stopping ownership while the supervised bootstrap remains", async () => {
+    const { managed, repository, world } = fixture();
+    await managed.start({ project, clients: 2 }, { timeoutMs: 120_000 });
+    world.observationAfterEnd = {
+      capturedAt: "2026-01-01T00:00:02.000Z",
+      stable: true,
+      possibleSimulation: false,
+      ownership: "recorded",
+      readiness: "bootstrap",
+      health: "indeterminate",
+      clients: {},
+      contradictions: [],
+    };
+
+    const outcome = await managed.stop({}, { timeoutMs: 1_000 });
+
+    expect(outcome).toMatchObject({
+      exitCode: 8,
+      response: {
+        result: "cleanup_failed",
+        reason: "teardown_unverified",
+        changed: true,
+        session: { state: "stopping", readiness: "bootstrap" },
+      },
+    });
+    expect(repository.record?.phase).toBe("stopping");
+    expect(world.endRequests).toHaveLength(1);
+  });
+
+  it("retains stopping ownership when the teardown observation is ambiguous", async () => {
+    const { managed, repository, world } = fixture();
+    await managed.start({ project, clients: 2 }, { timeoutMs: 120_000 });
+    world.observationAfterEnd = {
+      capturedAt: "2026-01-01T00:00:02.000Z",
+      stable: false,
+      possibleSimulation: false,
+      ownership: "ambiguous",
+      readiness: "none",
+      health: "indeterminate",
+      clients: {},
+      contradictions: ["MCP target set changed during capture"],
+    };
+
+    const outcome = await managed.stop({}, { timeoutMs: 1_000 });
+
+    expect(outcome).toMatchObject({
+      exitCode: 8,
+      response: {
+        result: "cleanup_failed",
+        reason: "teardown_unverified",
+        session: { state: "stopping", ownership: "ambiguous" },
+      },
+    });
+    expect(repository.record?.phase).toBe("stopping");
+  });
+
   it("preserves starting ownership when interrupted before ownership proof", async () => {
     const { managed, repository, world, environment } = fixture();
     const controller = new AbortController();
@@ -422,6 +478,132 @@ describe("ManagedSession", () => {
     });
     expect(repository.record?.phase).toBe("starting");
     expect(world.endRequests).toHaveLength(0);
+  });
+
+  it("cleans up an interrupted start after exact ownership proof", async () => {
+    const { managed, repository, world, environment } = fixture();
+    const controller = new AbortController();
+    world.advanceOnLaunch = false;
+    environment.onSleep = () => {
+      world.observation = {
+        capturedAt: "2026-01-01T00:00:01.000Z",
+        stable: true,
+        possibleSimulation: true,
+        ownership: "proved",
+        readiness: "server_responsive",
+        health: "degraded",
+        serverTargetId: "server-1",
+        clients: { processes: 2, datamodels: 0, joined: 0 },
+        contradictions: [],
+      };
+      controller.abort();
+    };
+
+    const outcome = await managed.start(
+      { project, clients: 2 },
+      { timeoutMs: 120_000, signal: controller.signal },
+    );
+
+    expect(outcome).toMatchObject({
+      exitCode: 12,
+      response: {
+        result: "interrupted",
+        reason: "signal_received",
+        changed: true,
+        session: { state: "absent", ownership: "none", readiness: "none" },
+        actions: [
+          "record_created",
+          "bootstrap_started",
+          "record_marked_stopping",
+          "end_test_requested",
+          "teardown_verified",
+          "record_removed",
+        ],
+      },
+    });
+    expect(world.endRequests).toHaveLength(1);
+    expect(repository.record).toBeUndefined();
+  });
+
+  it("cleans up when a start becomes joined as the signal arrives", async () => {
+    const { managed, repository, world, environment } = fixture();
+    const controller = new AbortController();
+    world.advanceOnLaunch = false;
+    environment.onSleep = () => {
+      world.observation = {
+        capturedAt: "2026-01-01T00:00:01.000Z",
+        stable: true,
+        possibleSimulation: true,
+        ownership: "proved",
+        readiness: "joined",
+        health: "healthy",
+        serverTargetId: "server-1",
+        clients: { processes: 2, datamodels: 2, joined: 2 },
+        contradictions: [],
+      };
+      controller.abort();
+    };
+
+    const outcome = await managed.start(
+      { project, clients: 2 },
+      { timeoutMs: 120_000, signal: controller.signal },
+    );
+
+    expect(outcome).toMatchObject({
+      exitCode: 12,
+      response: {
+        result: "interrupted",
+        reason: "signal_received",
+        session: { state: "absent", ownership: "none" },
+      },
+    });
+    expect(world.endRequests).toHaveLength(1);
+    expect(repository.record).toBeUndefined();
+  });
+
+  it("cleans up an interrupted resumed start after exact ownership proof", async () => {
+    const { managed, repository, world, environment } = fixture();
+    world.advanceOnLaunch = false;
+    await managed.start({ project, clients: 2 }, { timeoutMs: 1_000 });
+    const controller = new AbortController();
+    environment.onSleep = () => {
+      world.observation = {
+        capturedAt: "2026-01-01T00:00:02.000Z",
+        stable: true,
+        possibleSimulation: true,
+        ownership: "proved",
+        readiness: "server_responsive",
+        health: "degraded",
+        serverTargetId: "server-1",
+        clients: { processes: 2, datamodels: 0, joined: 0 },
+        contradictions: [],
+      };
+      controller.abort();
+    };
+
+    const outcome = await managed.start(
+      { project, clients: 2 },
+      { timeoutMs: 120_000, signal: controller.signal },
+    );
+
+    expect(outcome).toMatchObject({
+      exitCode: 12,
+      response: {
+        result: "interrupted",
+        reason: "signal_received",
+        changed: true,
+        session: { state: "absent", ownership: "none", readiness: "none" },
+        actions: [
+          "record_marked_stopping",
+          "end_test_requested",
+          "teardown_verified",
+          "record_removed",
+        ],
+      },
+    });
+    expect(world.launches).toHaveLength(1);
+    expect(world.endRequests).toHaveLength(1);
+    expect(repository.record).toBeUndefined();
   });
 
   it("clears a record only after a full stable absence window", async () => {
@@ -578,6 +760,29 @@ describe("ManagedSession", () => {
     });
     expect(repository.record).toEqual(record);
     expect(world.endRequests).toHaveLength(0);
+  });
+
+  it("treats an explicit mismatching status project as a conflict", async () => {
+    const { managed, repository, evidence } = fixture();
+    await managed.start({ project, clients: 2 }, { timeoutMs: 120_000 });
+    const record = structuredClone(repository.record);
+
+    const outcome = await managed.status(
+      { project: { ...project, root: "c:\\games\\other" } },
+      { timeoutMs: 30_000 },
+    );
+
+    expect(outcome).toMatchObject({
+      exitCode: 9,
+      response: {
+        command: "session.status",
+        result: "conflict",
+        reason: "project_mismatch",
+        changed: false,
+      },
+    });
+    expect(repository.record).toEqual(record);
+    expect(evidence.operations).toHaveLength(1);
   });
 
   it("refuses generic cleanup authority for a recordless live simulation", async () => {

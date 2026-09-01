@@ -45,6 +45,7 @@ export class FakeSessionWorld implements SessionWorld {
   endRequests: Array<{ record: ManagedSessionRecord; serverTargetId: string }> = [];
   advanceOnLaunch = true;
   advanceOnEnd = true;
+  observationAfterEnd: SessionObservation | undefined;
   observation: SessionObservation = {
     capturedAt: "2026-01-01T00:00:00.000Z",
     stable: true,
@@ -90,7 +91,9 @@ export class FakeSessionWorld implements SessionWorld {
 
   endOwned(record: ManagedSessionRecord, serverTargetId: string): Promise<void> {
     this.endRequests.push({ record: structuredClone(record), serverTargetId });
-    if (this.advanceOnEnd) {
+    if (this.observationAfterEnd !== undefined) {
+      this.observation = structuredClone(this.observationAfterEnd);
+    } else if (this.advanceOnEnd) {
       this.observation = {
         ...this.observation,
         possibleSimulation: false,

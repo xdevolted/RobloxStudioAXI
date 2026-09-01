@@ -24,7 +24,7 @@ The active record is stored at:
 
 It is a durable claim, not cleanup authority. Status or stop treats a live session as managed only when exactly one Local Server returns the complete matching protocol, session ID, canonical project identity, launch target, and requested client count through `StudioTestService:GetTestArgs()`.
 
-Mutating commands serialize through a sibling transaction-lock directory. Lock ownership and Windows process ownership both pair PID with creation time so PID reuse cannot silently transfer authority. A stale record is cleared only after repeated stable absence observations across ten seconds.
+Mutating commands serialize through a sibling transaction-lock directory. Lock ownership and Windows process ownership both pair PID with creation time so PID reuse cannot silently transfer authority. An abandoned lock owner must remain absent across repeated checks for one second within the five-second acquisition budget; a stale Managed Session Record is cleared only after repeated stable absence observations across ten seconds.
 
 If ownership is missing, mismatched, unreachable, or ambiguous, AXI preserves the record and Studio state. Inspect with `session status --full`; when Studio visibly contains the session, use Studio's manual End Session control and re-run status.
 
