@@ -4,7 +4,7 @@ Roblox Studio AXI is a reusable, agent-oriented CLI for discovering a Roblox gam
 
 It is not a game framework, a publisher, a replacement for Rojo, or a bag of game-specific automation. Game identities, places, selectors, probes, workflows, and acceptance tests stay in each game repository.
 
-Status: version `0.1.0` implements deterministic single-Studio playtests plus a Windows-first Managed Local Multiplayer Session lifecycle. Automated tests use deterministic fakes and local adapters; real-Studio acceptance remains an explicit operator-run check.
+Status: version `0.1.0` implements deterministic single-Studio playtests plus a Windows-first Managed Local Multiplayer Session lifecycle. Automated tests use deterministic fakes and local adapters; the production lifecycle has also passed a [live Windows Studio acceptance run](docs/research/managed-session-live-acceptance.md).
 
 ## Install once, use from every Roblox project
 
