@@ -22,6 +22,10 @@ import { resolveWorkflowTests, runWorkflow } from "./runner/workflow-runner.js";
 import { discoverStudioExecutable } from "./studio/cli/discover.js";
 import type { ResolvedProjectConfig, TestResult } from "./types.js";
 import { VERSION } from "./version.js";
+import { createProductionManagedSession } from "./session/factory.js";
+import { resolveSessionProjectIdentity } from "./session/identity.js";
+import type { SessionResponse } from "./session/types.js";
+import { createGuardedPlayControl } from "./studio/play-control.js";
 
 const DESCRIPTION = "Launch, inspect, and deterministically playtest configured Roblox Studio projects";
 type AxiRenderable = string | Record<string, unknown>;
@@ -39,6 +43,9 @@ Commands:
   test explain <result|run-id>   Explain a saved result
   workflow list                  List project workflows
   workflow run <name>            Run a workflow
+  session start --clients <n>    Start or re-observe a managed Local Multiplayer Session
+  session status                 Inspect the user-global managed session
+  session stop                   Stop the exactly owned managed session
   stop                           Stop play mode safely
   version                        Print the AXI version
 
@@ -61,6 +68,7 @@ const HELP = {
   project: `Usage: roblox-studio-axi project inspect [--project <path>] [--json] [--full]\nShows resolved, non-secret project configuration and launch readiness.\n`,
   test: `Usage:\n  roblox-studio-axi test validate <spec> [--project <path>] [--json]\n  roblox-studio-axi test run <spec> [--project <path>] [--studio <id>] [--json] [--full] [--verbose]\n  roblox-studio-axi test explain <result|run-id> [--project <path>] [--json] [--full]\n`,
   workflow: `Usage:\n  roblox-studio-axi workflow list [--project <path>] [--json] [--full]\n  roblox-studio-axi workflow run <name|path> [--project <path>] [--studio <id>] [--json] [--full] [--verbose]\n`,
+  session: `Usage:\n  roblox-studio-axi session start --clients <1..8> [--project <path>] [--timeout <seconds>] [--json] [--full] [--verbose]\n  roblox-studio-axi session status [--project <path>] [--timeout <seconds>] [--json] [--full] [--verbose]\n  roblox-studio-axi session stop [--project <path>] [--timeout <seconds>] [--json] [--full] [--verbose]\n`,
   stop: `Usage: roblox-studio-axi stop [--project <path>] [--studio <id>] [--json]\nStops play mode. Already stopped is a successful no-op.\n`,
   version: `Usage: roblox-studio-axi version [--json]\nPrints the installed AXI version. -v, -V, and --version are fast-path aliases.\n`,
 } as const;
@@ -191,13 +199,10 @@ async function projectCommand(args: string[]): Promise<AxiRenderable> {
   return format(output, parsed);
 }
 
-function installInterruptCleanup(service: Awaited<ReturnType<typeof createStudioService>>, studioId: string) {
+function installInterruptSignal() {
   const controller = new AbortController();
   const handler = () => {
     controller.abort();
-    void service.stopPlay(studioId).catch((error) => {
-      process.stderr.write(`Best-effort interrupt cleanup failed: ${messageFromUnknown(error)}\n`);
-    });
   };
   process.once("SIGINT", handler);
   process.once("SIGTERM", handler);
@@ -267,13 +272,14 @@ async function testCommand(args: string[]): Promise<AxiRenderable> {
     launchIfMissing: true,
     verbose: booleanFlag(parsed, "--verbose"),
   });
-  const interrupt = installInterruptCleanup(connected.service, connected.studio.id);
+  const interrupt = installInterruptSignal();
   try {
     const outcome = await runPlaytest({
       config,
       spec: loaded.spec,
       source: loaded.source,
       service: connected.service,
+      playControl: createGuardedPlayControl({ service: connected.service, config }),
       studio: connected.studio,
       signal: interrupt.signal,
     });
@@ -349,12 +355,13 @@ async function workflowCommand(args: string[]): Promise<AxiRenderable> {
     launchIfMissing: true,
     verbose: booleanFlag(parsed, "--verbose"),
   });
-  const interrupt = installInterruptCleanup(connected.service, connected.studio.id);
+  const interrupt = installInterruptSignal();
   try {
     const outcome = await runWorkflow({
       config,
       workflow: loaded.workflow,
       service: connected.service,
+      playControl: createGuardedPlayControl({ service: connected.service, config }),
       studio: connected.studio,
       signal: interrupt.signal,
     });
@@ -383,7 +390,10 @@ async function stopCommand(args: string[]): Promise<AxiRenderable> {
       : { explicitStudioId: stringFlag(parsed, "--studio")! }),
   });
   try {
-    const changed = await connected.service.stopPlay(connected.studio.id);
+    const changed = await createGuardedPlayControl({
+      service: connected.service,
+      config,
+    }).stop(connected.studio.id);
     const output = {
       studio: connected.studio.id,
       state: "edit",
@@ -393,6 +403,85 @@ async function stopCommand(args: string[]): Promise<AxiRenderable> {
     return format(output, parsed);
   } finally {
     await connected.service.close();
+  }
+}
+
+function sessionTimeout(parsed: ParsedArguments, fallbackSeconds: number): number {
+  const raw = stringFlag(parsed, "--timeout");
+  if (raw === undefined) return fallbackSeconds * 1_000;
+  const seconds = Number(raw);
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    throw usageError("--timeout must be a positive number of seconds", [HELP.session.trim()]);
+  }
+  return seconds * 1_000;
+}
+
+function sessionOutput(response: SessionResponse, parsed: ParsedArguments): AxiRenderable {
+  const presented = structuredClone(response);
+  if (!booleanFlag(parsed, "--full")) {
+    delete presented.actions;
+    delete presented.details;
+  }
+  return format(presented as unknown as Record<string, unknown>, parsed);
+}
+
+async function sessionCommand(args: string[]): Promise<AxiRenderable> {
+  if (wantsHelp(args)) return HELP.session;
+  const subcommand = args[0];
+  if (!subcommand || !["start", "status", "stop"].includes(subcommand)) {
+    throw usageError(`Unknown session command: ${subcommand ?? "(missing)"}`, [HELP.session.trim()]);
+  }
+  const parsed = parseArguments({
+    args: args.slice(1),
+    command: `session ${subcommand}`,
+    usage: `roblox-studio-axi session ${subcommand}`,
+    minPositionals: 0,
+    maxPositionals: 0,
+    globalFlags: ["--json", "--full", "--verbose", "--project"],
+    flags: {
+      "--timeout": "value",
+      ...(subcommand === "start" ? { "--clients": "value" as const } : {}),
+    },
+  });
+  const interrupt = installInterruptSignal();
+  try {
+    if (subcommand === "start") {
+      const clientsRaw = stringFlag(parsed, "--clients");
+      const clients = clientsRaw === undefined ? Number.NaN : Number(clientsRaw);
+      if (!Number.isInteger(clients) || clients < 1 || clients > 8) {
+        throw usageError("--clients is required and must be an integer from 1 through 8", [
+          HELP.session.trim(),
+        ]);
+      }
+      const timeoutMs = sessionTimeout(parsed, 120);
+      const config = await configFrom(parsed);
+      assertSafeTestEnvironment(config);
+      const managed = createProductionManagedSession({ config });
+      const outcome = await managed.start(
+        { project: await resolveSessionProjectIdentity(config), clients },
+        { timeoutMs, signal: interrupt.signal, full: booleanFlag(parsed, "--full") },
+      );
+      process.exitCode = outcome.exitCode;
+      return sessionOutput(outcome.response, parsed);
+    }
+
+    const timeoutMs = sessionTimeout(parsed, subcommand === "status" ? 30 : 60);
+    const explicitProject = stringFlag(parsed, "--project");
+    const config = explicitProject === undefined ? undefined : await configFrom(parsed);
+    const project = config === undefined ? undefined : await resolveSessionProjectIdentity(config);
+    const managed = createProductionManagedSession({ ...(config === undefined ? {} : { config }) });
+    const context = {
+      timeoutMs,
+      signal: interrupt.signal,
+      full: booleanFlag(parsed, "--full"),
+    };
+    const outcome = subcommand === "status"
+      ? await managed.status(project === undefined ? {} : { project }, context)
+      : await managed.stop(project === undefined ? {} : { project }, context);
+    process.exitCode = outcome.exitCode;
+    return sessionOutput(outcome.response, parsed);
+  } finally {
+    interrupt.dispose();
   }
 }
 
@@ -434,6 +523,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       project: projectCommand,
       test: testCommand,
       workflow: workflowCommand,
+      session: sessionCommand,
       stop: stopCommand,
       version: versionCommand,
       update: async () => {

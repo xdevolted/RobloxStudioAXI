@@ -6,6 +6,11 @@ The package is split around stable domain operations rather than raw protocol me
 CLI commands
     │
     ├── project/config + schema validation
+    ├── ManagedSession (start/status/stop state machine)
+    │       ├── SessionRepository (record + transaction lock)
+    │       ├── SessionWorld (stable Windows/MCP observation + guarded control)
+    │       ├── SessionEvidence (manifest-first operation artifacts)
+    │       └── SessionEnvironment (time, IDs, process identity, signals)
     │
     └── test/workflow runner
             │
@@ -25,6 +30,8 @@ CLI commands
 - `src/studio/service.ts`: normalized operations such as `listStudios`, `startPlay`, `executeLuau`, and `captureScreen`.
 - `src/targeting`: generic instance path, `TestId`, tag, semantic UI, and explicit coordinate resolution.
 - `src/runner`: lifecycle, safe polling, step execution, assertions, workflow orchestration, interruption handling, and mandatory cleanup.
+- `src/session`: the deep Managed Session module, pure capture classification, atomic user-local ownership, deterministic adapters, bootstrap generation, evidence, and Windows control.
+- `src/studio/play-control.ts`: the shared guarded mutation seam used by generic stop, test, and workflow paths.
 - `src/evidence`: atomic, schema-validated artifact persistence.
 - `src/cli.ts`: goal-oriented commands, strict argument validation, TOON/JSON output, errors, and exit codes.
 
@@ -33,6 +40,8 @@ Game repositories own all identity and business behavior. No shared source check
 ## Lifecycle
 
 `test run` validates before connecting, discovers capabilities, lists Studios, selects deterministically, captures the console baseline, establishes the requested mode, executes steps and nearby assertions, collects evidence, and stops play mode in `finally`. Artifact JSON is written after cleanup so the cleanup outcome is canonical.
+
+Managed Local Multiplayer Sessions use an observe-decide-act loop behind the `ManagedSession.start/status/stop` interface. Each mutation is based on a fresh stable observation. Session ownership is persisted before launch, re-proved inside the exact Local Server before `EndTest()`, and removed only after teardown is independently observed. See [Managed Local Multiplayer Sessions](local-multiplayer-sessions.md).
 
 Read-only discovery and polling may repeat. Navigation, keyboard, mouse, and arbitrary Luau mutations are executed once unless a future spec explicitly adds an idempotency policy.
 

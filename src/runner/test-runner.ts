@@ -15,6 +15,7 @@ import type {
 } from "../types.js";
 import type { StudioService } from "../studio/service.js";
 import { consoleDelta } from "../studio/service.js";
+import type { PlayControl } from "../studio/play-control.js";
 import { resolveTarget } from "../targeting/resolver.js";
 import { evaluateAssertion } from "./assertions.js";
 import { withTimeout } from "./timeout.js";
@@ -24,6 +25,7 @@ export interface RunPlaytestOptions {
   spec: PlaytestSpec;
   source: string;
   service: StudioService;
+  playControl: PlayControl;
   studio: StudioInstance;
   signal?: AbortSignal;
 }
@@ -85,11 +87,12 @@ async function runStep(options: {
   step: PlaytestStep;
   config: ResolvedProjectConfig;
   service: StudioService;
+  playControl: PlayControl;
   studioId: string;
   artifacts: RunArtifacts;
   screenshots: string[];
 }): Promise<unknown> {
-  const { step, config, service, studioId } = options;
+  const { step, config, service, playControl, studioId } = options;
   switch (step.action) {
     case "wait":
       await new Promise((resolvePromise) => setTimeout(resolvePromise, step.duration_ms));
@@ -107,12 +110,12 @@ async function runStep(options: {
       );
       return true;
     case "start_play": {
-      const changed = await service.startPlay(studioId);
+      const changed = await playControl.start(studioId);
       await service.waitForState(studioId, "play", config.studio.operationTimeoutMs);
       return { changed, state: "play" };
     }
     case "stop_play": {
-      const changed = await service.stopPlay(studioId);
+      const changed = await playControl.stop(studioId);
       await service.waitForState(studioId, "edit", config.studio.operationTimeoutMs);
       return { changed, state: "edit" };
     }
@@ -237,10 +240,10 @@ export async function runPlaytest(options: RunPlaytestOptions): Promise<RunPlayt
     const setupMode = options.spec.setup?.mode ?? "play";
     const setupTimeoutMs = (options.spec.setup?.timeout_seconds ?? 60) * 1_000;
     if (setupMode === "play" && initialState.mode !== "play") {
-      await options.service.startPlay(options.studio.id);
+      await options.playControl.start(options.studio.id);
       lastStudioState = (await options.service.waitForState(options.studio.id, "play", setupTimeoutMs)).mode;
     } else if (setupMode === "edit" && initialState.mode !== "edit") {
-      await options.service.stopPlay(options.studio.id);
+      await options.playControl.stop(options.studio.id);
       lastStudioState = (await options.service.waitForState(options.studio.id, "edit", setupTimeoutMs)).mode;
     }
 
@@ -256,6 +259,7 @@ export async function runPlaytest(options: RunPlaytestOptions): Promise<RunPlayt
             step,
             config: options.config,
             service: options.service,
+            playControl: options.playControl,
             studioId: options.studio.id,
             artifacts,
             screenshots,
@@ -329,7 +333,7 @@ export async function runPlaytest(options: RunPlaytestOptions): Promise<RunPlayt
     if (options.config.safety.alwaysStopPlaytest && options.spec.cleanup.stop_playtest) {
       cleanupStatus = { status: "passed", stop_attempted: true };
       try {
-        await options.service.stopPlay(options.studio.id);
+        await options.playControl.stop(options.studio.id);
         lastStudioState = (
           await options.service.waitForState(
             options.studio.id,

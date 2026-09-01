@@ -22,8 +22,18 @@ export function parseArguments(options: {
   minPositionals?: number;
   maxPositionals?: number;
   usage: string;
+  globalFlags?: readonly string[];
 }): ParsedArguments {
-  const known = { ...GLOBAL_FLAGS, ...(options.flags ?? {}) };
+  const globals = options.globalFlags === undefined
+    ? GLOBAL_FLAGS
+    : Object.fromEntries(
+        options.globalFlags.map((name) => {
+          const kind = GLOBAL_FLAGS[name];
+          if (!kind) throw new Error(`Unknown global flag configuration: ${name}`);
+          return [name, kind];
+        }),
+      );
+  const known = { ...globals, ...(options.flags ?? {}) };
   const parsed: ParsedArguments = { positionals: [], flags: {} };
 
   for (let index = 0; index < options.args.length; index += 1) {

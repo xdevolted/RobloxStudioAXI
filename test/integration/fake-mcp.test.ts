@@ -84,7 +84,11 @@ async function fixture() {
   const service = new StudioService(transport, 100);
   await service.connect();
   const config = resolvedConfig(root);
-  return { root, transport, service, config, studio: { id: "studio-1", name: "FixtureGame", placeId: 22 } };
+  const playControl = {
+    start: (studioId: string) => service.startPlay(studioId),
+    stop: (studioId: string) => service.stopPlay(studioId),
+  };
+  return { root, transport, service, playControl, config, studio: { id: "studio-1", name: "FixtureGame", placeId: 22 } };
 }
 
 function spec(assertions: PlaytestSpec["assertions"] = [{ type: "console_errors", maximum: 0 }]): PlaytestSpec {
@@ -143,8 +147,8 @@ describe("fake Studio MCP integration", () => {
   });
 
   it("runs a full passing lifecycle and writes canonical artifacts", async () => {
-    const { root, transport, service, config, studio } = await fixture();
-    const outcome = await runPlaytest({ config, spec: spec(), source: "smoke", service, studio });
+    const { root, transport, service, playControl, config, studio } = await fixture();
+    const outcome = await runPlaytest({ config, spec: spec(), source: "smoke", service, playControl, studio });
     expect(outcome.exitCode).toBe(0);
     expect(outcome.result).toMatchObject({ status: "passed", cleanup: { status: "passed" } });
     expect(transport.mode).toBe("edit");
@@ -155,7 +159,7 @@ describe("fake Studio MCP integration", () => {
   });
 
   it("fails an assertion and still stops play mode", async () => {
-    const { transport, service, config, studio } = await fixture();
+    const { transport, service, playControl, config, studio } = await fixture();
     const outcome = await runPlaytest({
       config,
       spec: spec([
@@ -169,6 +173,7 @@ describe("fake Studio MCP integration", () => {
       ]),
       source: "failure",
       service,
+      playControl,
       studio,
     });
     expect(outcome.exitCode).toBe(1);
@@ -179,7 +184,7 @@ describe("fake Studio MCP integration", () => {
   });
 
   it("times out a step and still executes cleanup", async () => {
-    const { transport, service, config, studio } = await fixture();
+    const { transport, service, playControl, config, studio } = await fixture();
     const timeoutSpec: PlaytestSpec = {
       schema_version: 1,
       id: "timeout",
@@ -188,7 +193,7 @@ describe("fake Studio MCP integration", () => {
       steps: [{ action: "wait", duration_ms: 50, timeout_seconds: 0.005 }],
       cleanup: { stop_playtest: true },
     };
-    const outcome = await runPlaytest({ config, spec: timeoutSpec, source: "timeout", service, studio });
+    const outcome = await runPlaytest({ config, spec: timeoutSpec, source: "timeout", service, playControl, studio });
     expect(outcome.exitCode).toBe(6);
     expect(outcome.result.failure?.code).toBe("TIMEOUT");
     expect(outcome.result.cleanup.status).toBe("passed");
@@ -196,9 +201,9 @@ describe("fake Studio MCP integration", () => {
   });
 
   it("maps a cleanup failure to stable exit code 8", async () => {
-    const { transport, service, config, studio } = await fixture();
+    const { transport, service, playControl, config, studio } = await fixture();
     transport.failStop = true;
-    const outcome = await runPlaytest({ config, spec: spec(), source: "cleanup", service, studio });
+    const outcome = await runPlaytest({ config, spec: spec(), source: "cleanup", service, playControl, studio });
     expect(outcome.exitCode).toBe(8);
     expect(outcome.result.status).toBe("error");
     expect(outcome.result.cleanup.status).toBe("failed");
@@ -206,7 +211,7 @@ describe("fake Studio MCP integration", () => {
   });
 
   it("enforces the workflow timeout without bypassing test cleanup", async () => {
-    const { root, transport, service, config, studio } = await fixture();
+    const { root, transport, service, playControl, config, studio } = await fixture();
     const playtests = join(root, "tests", "playtests");
     await mkdir(playtests, { recursive: true });
     await writeFile(
@@ -223,6 +228,7 @@ describe("fake Studio MCP integration", () => {
         cleanup: { stop_playtest: true },
       },
       service,
+      playControl,
       studio,
     });
     expect(outcome.exitCode).toBe(6);
