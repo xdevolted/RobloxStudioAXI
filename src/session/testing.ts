@@ -45,6 +45,7 @@ export class FakeSessionWorld implements SessionWorld {
   endRequests: Array<{ record: ManagedSessionRecord; serverTargetId: string }> = [];
   advanceOnLaunch = true;
   advanceOnEnd = true;
+  onEnd: (() => void) | undefined;
   observationAfterEnd: SessionObservation | undefined;
   observation: SessionObservation = {
     capturedAt: "2026-01-01T00:00:00.000Z",
@@ -103,6 +104,7 @@ export class FakeSessionWorld implements SessionWorld {
         clients: {},
       };
     }
+    this.onEnd?.();
     return Promise.resolve();
   }
 }

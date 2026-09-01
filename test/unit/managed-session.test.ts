@@ -456,6 +456,30 @@ describe("ManagedSession", () => {
     expect(repository.record?.phase).toBe("stopping");
   });
 
+  it("preserves stopping ownership when interrupted after EndTest", async () => {
+    const { managed, repository, world } = fixture();
+    await managed.start({ project, clients: 2 }, { timeoutMs: 120_000 });
+    const controller = new AbortController();
+    world.onEnd = () => controller.abort();
+
+    const outcome = await managed.stop(
+      {},
+      { timeoutMs: 60_000, signal: controller.signal },
+    );
+
+    expect(outcome).toMatchObject({
+      exitCode: 12,
+      response: {
+        result: "interrupted",
+        reason: "signal_received",
+        changed: true,
+        session: { state: "stopping" },
+      },
+    });
+    expect(repository.record?.phase).toBe("stopping");
+    expect(world.endRequests).toHaveLength(1);
+  });
+
   it("preserves starting ownership when interrupted before ownership proof", async () => {
     const { managed, repository, world, environment } = fixture();
     const controller = new AbortController();
@@ -762,6 +786,36 @@ describe("ManagedSession", () => {
     expect(world.endRequests).toHaveLength(0);
   });
 
+  it("reports a stop project conflict despite unstable Studio observation", async () => {
+    const { managed, repository, world } = fixture();
+    await managed.start({ project, clients: 2 }, { timeoutMs: 120_000 });
+    const record = structuredClone(repository.record);
+    world.observation = {
+      ...world.observation,
+      stable: false,
+      ownership: "ambiguous",
+      health: "indeterminate",
+      contradictions: ["MCP target set changed during capture"],
+    };
+
+    const outcome = await managed.stop(
+      { project: { ...project, root: "c:\\games\\other" } },
+      { timeoutMs: 60_000 },
+    );
+
+    expect(outcome).toMatchObject({
+      exitCode: 9,
+      response: {
+        result: "conflict",
+        reason: "project_mismatch",
+        changed: false,
+        session: { state: "running", ownership: "ambiguous" },
+      },
+    });
+    expect(repository.record).toEqual(record);
+    expect(world.endRequests).toHaveLength(0);
+  });
+
   it("treats an explicit mismatching status project as a conflict", async () => {
     const { managed, repository, evidence } = fixture();
     await managed.start({ project, clients: 2 }, { timeoutMs: 120_000 });
@@ -783,6 +837,33 @@ describe("ManagedSession", () => {
     });
     expect(repository.record).toEqual(record);
     expect(evidence.operations).toHaveLength(1);
+  });
+
+  it("reports a status project conflict despite unstable Studio observation", async () => {
+    const { managed, world } = fixture();
+    await managed.start({ project, clients: 2 }, { timeoutMs: 120_000 });
+    world.observation = {
+      ...world.observation,
+      stable: false,
+      ownership: "ambiguous",
+      health: "indeterminate",
+      contradictions: ["MCP target set changed during capture"],
+    };
+
+    const outcome = await managed.status(
+      { project: { ...project, root: "c:\\games\\other" } },
+      { timeoutMs: 30_000 },
+    );
+
+    expect(outcome).toMatchObject({
+      exitCode: 9,
+      response: {
+        result: "conflict",
+        reason: "project_mismatch",
+        changed: false,
+        session: { state: "running", ownership: "ambiguous" },
+      },
+    });
   });
 
   it("refuses generic cleanup authority for a recordless live simulation", async () => {
