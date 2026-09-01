@@ -1,6 +1,6 @@
 # Managed Local Multiplayer Session live acceptance
 
-Evidence for [Live-verify managed Local Multiplayer Session lifecycle](https://github.com/xdevolted/RobloxStudioAXI/issues/8), captured on 2026-08-31 from commit `35c24b1` on `codex/deterministic-multiplayer-workflow`.
+Evidence for [Live-verify managed Local Multiplayer Session lifecycle](https://github.com/xdevolted/RobloxStudioAXI/issues/8), captured on 2026-08-31 from commit `35c24b1` and revalidated on the final merge candidate `5f2a0df` on `codex/deterministic-multiplayer-workflow`.
 
 ## Verdict
 
@@ -16,7 +16,18 @@ The production `session start`, `session status`, and `session stop` lifecycle p
 - Repeated stop was a successful no-op.
 - The pre-existing Edit Studio survived both sessions and remained in Edit mode after all cleanup.
 
-The automated baseline also passed: 13 Vitest files / 72 tests and 6 setup tests.
+The final automated baseline also passed: 13 Vitest files / 82 tests and 6 setup tests.
+
+## Final-candidate revalidation
+
+Commit `5f2a0df` was revalidated after the review-driven interruption and project-assertion fixes:
+
+- Healthy two-client start `31bb6263-25f3-496b-bacf-2abc76a7b300` reached `running` / `proved` / `responsive` / `healthy` with exact process, DataModel, joined-player, and responsiveness counts.
+- Alternate-project status and stop both returned `conflict` / `project_mismatch` without changing that session. The evidenced stop refusal is `a8e72a8b-0a23-44b4-b512-cdd275e26daf`.
+- Normal stop `17bb2813-9932-46c9-ac8e-7d09088b0c9b` used `record_marked_stopping`, `end_test_requested`, `teardown_verified`, and `record_removed`.
+- A four-client Ctrl+C run `5133bf58-6740-44dd-929a-41ade948a2db` returned `interrupted`; status then re-proved ownership and cleanup `6471f564-b914-4658-8db7-3b85f437fb8f` completed through guarded `EndTest()`.
+- For the degraded-stop case, the exact CLI caller PID `32932` was verified and terminated only after status observed `starting` / `proved` / `server_responsive` / `degraded`. The incomplete start is `1ac8904f-2b00-48cb-b1c0-649e5b7d0bd7`; stop `55b43a00-baab-4113-8a5e-e5d1e81cbe1f` re-proved the server token, requested `EndTest()`, verified teardown, and removed the record.
+- Final managed status was `absent`. The only remaining Studio process was the pre-existing Edit Studio PID `5248`.
 
 ## Environment
 
