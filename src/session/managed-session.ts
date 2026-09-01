@@ -853,6 +853,20 @@ export function createManagedSession(dependencies: Dependencies): ManagedSession
             },
           } satisfies SessionOutcome;
         }
+        if (record !== undefined && _context.signal?.aborted) {
+          const interrupted = responseFrom(
+            "session.stop",
+            "interrupted",
+            false,
+            record,
+            observation,
+            operation.directory,
+            [],
+          );
+          interrupted.exitCode = 12;
+          interrupted.response.reason = "signal_received";
+          return interrupted;
+        }
         if (
           record !== undefined &&
           observation.stable &&

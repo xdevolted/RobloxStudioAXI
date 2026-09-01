@@ -480,6 +480,30 @@ describe("ManagedSession", () => {
     expect(world.endRequests).toHaveLength(1);
   });
 
+  it("does not begin teardown when stop is interrupted during initial observation", async () => {
+    const { managed, repository, world } = fixture();
+    await managed.start({ project, clients: 2 }, { timeoutMs: 120_000 });
+    const controller = new AbortController();
+    world.onObserve = () => controller.abort();
+
+    const outcome = await managed.stop(
+      {},
+      { timeoutMs: 60_000, signal: controller.signal },
+    );
+
+    expect(outcome).toMatchObject({
+      exitCode: 12,
+      response: {
+        result: "interrupted",
+        reason: "signal_received",
+        changed: false,
+        session: { state: "running" },
+      },
+    });
+    expect(repository.record?.phase).toBe("running");
+    expect(world.endRequests).toHaveLength(0);
+  });
+
   it("preserves starting ownership when interrupted before ownership proof", async () => {
     const { managed, repository, world, environment } = fixture();
     const controller = new AbortController();
